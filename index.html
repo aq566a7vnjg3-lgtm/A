@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>必要書類確認ツール｜Honda Cars 奈良中央</title>
+<title>必要書類確認ツール</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Barlow+Condensed:wght@700;800;900&family=Rajdhani:wght@600;700&display=swap');
 
@@ -504,7 +504,7 @@
 <body>
 
 <header>
-  <div class="header-logo">Honda Cars<span>奈良中央 ｜ 必要書類確認ツール</span></div>
+  <div class="header-logo">必要書類確認ツール</div>
   <div class="header-badge">社内専用</div>
 </header>
 
@@ -625,15 +625,42 @@ const QUESTIONS = [
       { label: 'いいえ（不要）', value: 'no', icon: '✗', cls: 'no-btn' },
     ]
   },
+  // ===== 法人専用：登記住所との一致確認 =====
+  {
+    id: 'shako_hojin_jusho',
+    step: 'STEP 3-a ／ 使用の本拠',
+    text: '車庫の住所は、法人の登記住所と同じですか？',
+    note: '※ 異なる場合は「使用の本拠」を証明する書類が追加で必要になります',
+    type: 'yesno',
+    condition: (a) => a.shako === 'yes' && a.meigi === 'hojin',
+    choices: [
+      { label: 'はい（同じ）', value: 'yes', icon: '✓', cls: 'yes-btn' },
+      { label: 'いいえ（異なる）', value: 'no', icon: '✗', cls: 'no-btn' },
+    ]
+  },
+  // ===== 個人：車庫の種類 =====
   {
     id: 'shako_type',
-    step: 'STEP 3-a ／ 車庫の種類',
+    step: 'STEP 3-b ／ 車庫の種類',
     text: '車庫（保管場所）はどちらですか？',
     type: 'single',
-    condition: (a) => a.shako === 'yes',
+    condition: (a) => a.shako === 'yes' && a.meigi === 'kojin',
     choices: [
       { label: '自己所有（自宅・持家など）', value: 'jiko', icon: '🏠' },
       { label: '他人所有（賃貸・親名義など）', value: 'tanin', icon: '🔑' },
+    ]
+  },
+  // ===== 法人：車庫の種類 =====
+  {
+    id: 'shako_type_hojin',
+    step: 'STEP 3-b ／ 車庫の種類（法人）',
+    text: '車庫（保管場所）の名義はどちらですか？',
+    type: 'single',
+    condition: (a) => a.shako === 'yes' && a.meigi === 'hojin',
+    choices: [
+      { label: '法人名義の土地・建物', value: 'hojin_jiko', icon: '🏢' },
+      { label: '代表者・役員等の個人名義', value: 'kojin_meigi', icon: '👤' },
+      { label: '賃貸・リース（第三者所有）', value: 'chintai', icon: '🔑' },
     ]
   },
   {
@@ -720,7 +747,7 @@ const QUESTIONS = [
     type: 'single',
     choices: [
       { label: '他社（現在他社の保険あり）', value: 'tasha', icon: '🏢' },
-      { label: '自社（Honda Cars 奈良中央）', value: 'jisha', icon: '🏪' },
+      { label: '自社', value: 'jisha', icon: '🏪' },
       { label: '未加入', value: 'mikanyuu', icon: '—' },
     ]
   },
@@ -870,6 +897,13 @@ function showResult() {
       chips += `<div class="chip active">${map[answers[k]]}</div>`;
     }
   }
+  // 法人車庫証明チップ
+  if (answers.meigi === 'hojin' && answers.shako === 'yes') {
+    const hojinJushoMap = { yes: '登記住所と一致', no: '登記住所と相違（要証明書）' };
+    const shakoHojinMap = { hojin_jiko: '車庫：法人名義', kojin_meigi: '車庫：個人名義', chintai: '車庫：賃貸・リース' };
+    if (hojinJushoMap[answers.shako_hojin_jusho]) chips += `<div class="chip trade">${hojinJushoMap[answers.shako_hojin_jusho]}</div>`;
+    if (shakoHojinMap[answers.shako_type_hojin])  chips += `<div class="chip trade">${shakoHojinMap[answers.shako_type_hojin]}</div>`;
+  }
   // 下取り詳細チップ（青色）
   if (answers.shitauke === 'yes') {
     const tradeShasha = { futsuu: '下取り：普通車', kei: '下取り：軽自動車' };
@@ -915,22 +949,50 @@ function showResult() {
 
   // 車庫証明
   if (answers.shako === 'yes') {
-    if (answers.shako_type === 'jiko') {
-      regDocs.push({ name: '車庫証明 申請書（自認書）', note: '自己所有の場合', req: 'required' });
-    } else if (answers.shako_type === 'tanin') {
-      regDocs.push({ name: '車庫証明 申請書（使用承諾書）', note: '他人所有・賃貸等の場合', req: 'required' });
+    const isHojin = answers.meigi === 'hojin';
+
+    if (isHojin) {
+      // ===== 法人の車庫証明 =====
+      const shakoTypeHojin = answers.shako_type_hojin;
+
+      // 1) 申請書類（自認書 or 使用承諾書）
+      if (shakoTypeHojin === 'hojin_jiko') {
+        regDocs.push({ name: '車庫証明 申請書（自認書）', note: '法人名義の土地・建物の場合', req: 'required' });
+      } else if (shakoTypeHojin === 'kojin_meigi') {
+        regDocs.push({ name: '車庫証明 申請書（使用承諾書）', note: '代表者・役員等の個人名義の場合', req: 'required' });
+      } else if (shakoTypeHojin === 'chintai') {
+        regDocs.push({ name: '車庫証明 申請書（使用承諾書）', note: '賃貸・リース先からの承諾書', req: 'required' });
+      } else {
+        regDocs.push({ name: '車庫証明 申請書', note: '自認書 or 使用承諾書', req: 'required' });
+      }
+
+      // 2) 使用の本拠（登記住所と異なる場合）
+      if (answers.shako_hojin_jusho === 'no') {
+        regDocs.push({
+          name: '使用の本拠を証明する書類',
+          note: '公共料金の領収書（電気・ガス・水道等）または固定電話の請求書など・法人名記載のもの・発行3ヶ月以内',
+          req: 'required'
+        });
+        notes.push('登記住所と車庫が異なる場合、「使用の本拠の位置」を証明する書類が必要です。法人名が記載された公共料金の領収書（電気・ガス・水道など）が一般的ですが、警察署により認められる書類が異なる場合があります。事前に管轄警察署へご確認ください。');
+      }
+
     } else {
-      regDocs.push({ name: '車庫証明 申請書', note: '自認書 or 使用承諾書', req: 'required' });
+      // ===== 個人の車庫証明 =====
+      if (answers.shako_type === 'jiko') {
+        regDocs.push({ name: '車庫証明 申請書（自認書）', note: '自己所有の場合', req: 'required' });
+      } else if (answers.shako_type === 'tanin') {
+        regDocs.push({ name: '車庫証明 申請書（使用承諾書）', note: '他人所有・賃貸等の場合', req: 'required' });
+      } else {
+        regDocs.push({ name: '車庫証明 申請書', note: '自認書 or 使用承諾書', req: 'required' });
+      }
     }
-    // 所在図・配置図
+
+    // 所在図・配置図（個人・法人共通）
     if (answers.shashubetsu === 'futsuu') {
       regDocs.push({ name: 'OSS 所在図', note: '車庫証明申請用', req: 'required' });
       regDocs.push({ name: 'OSS 配置図', note: '車庫証明申請用', req: 'required' });
     } else {
       regDocs.push({ name: '軽自動車 所在図・配置図', note: '車庫証明申請用', req: 'required' });
-    }
-    if (answers.hantei === 'no') {
-      notes.push('住民票と車庫が異なる市区町村の場合、使用の本拠の位置（実際の居所）を確認してください。');
     }
   }
 
