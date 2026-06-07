@@ -825,9 +825,16 @@ function render() {
 function answer(qid, value, btn, stepIndex) {
   // 過去の質問を再クリックした場合、それ以降の回答をクリアしてそのステップから再開
   if (stepIndex < currentStep) {
+    // visibleQuestionsではなくQUESTIONS全体からstepIndex+1以降をクリア
+    // （condition付き質問の古い回答が残らないようにするため）
     const allQ = getVisibleQuestions();
-    for (let i = stepIndex + 1; i < allQ.length; i++) {
-      delete answers[allQ[i].id];
+    const clearedFrom = allQ[stepIndex + 1] ? allQ[stepIndex + 1].id : null;
+    if (clearedFrom) {
+      const allIds = QUESTIONS.map(q => q.id);
+      const clearFromIdx = allIds.indexOf(allQ[stepIndex + 1].id);
+      for (let i = clearFromIdx; i < allIds.length; i++) {
+        delete answers[allIds[i]];
+      }
     }
     currentStep = stepIndex;
   }
@@ -1003,7 +1010,8 @@ function showResult() {
   // ========== 下取り ==========
   if (answers.shitauke === 'yes') {
     let tradeDocs = [];
-    const isTrade_futsuu = answers.shitauke_shashubetsu === 'futsuu';
+    const isTrade_futsuu = (answers.shitauke_shashubetsu === 'futsuu');
+    const isTrade_kei = (answers.shitauke_shashubetsu === 'kei');
 
     if (isTrade_futsuu) {
       // 普通車
@@ -1012,7 +1020,7 @@ function showResult() {
       tradeDocs.push({ name: '認印', note: '申請書類用（シャチハタ不可）', req: 'required' });
       tradeDocs.push({ name: '譲渡証明書', note: '名義人の実印にて・1通', req: 'required' });
       tradeDocs.push({ name: '自動車税還付委任状', note: '実印にて・月割り還付ありの場合', req: 'required' });
-    } else {
+    } else if (isTrade_kei) {
       // 軽自動車
       tradeDocs.push({ name: '認印', note: '軽自動車は認印のみで可（シャチハタ不可）', req: 'required' });
       tradeDocs.push({ name: '軽自動車 譲渡証明書', note: '認印にて・1通', req: 'required' });
@@ -1032,7 +1040,7 @@ function showResult() {
           tradeDocs.push({ name: '戸籍附票', note: '2回以上の住所変更を経緯証明・1通', req: 'required' });
         }
       }
-    } else {
+    } else if (isTrade_kei) {
       // 軽自動車：印鑑証明は一切不要
       if (answers.shitauke_jusho === 'no') {
         if (answers.shitauke_jusho_kako === 'one') {
